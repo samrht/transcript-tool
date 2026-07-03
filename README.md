@@ -1,6 +1,6 @@
 # TranscriptVault — Bulk YouTube Transcript Extractor
 
-A standalone local app to extract transcripts from multiple YouTube videos at once, organized and ready for AI training.
+A Flask app to extract transcripts from multiple YouTube videos at once, organized and ready for AI training. Runs locally or deploys to Vercel.
 
 ## Setup (one time)
 
@@ -90,7 +90,7 @@ supports routing through a proxy (see its `ProxyConfig` docs) as a workaround.
 The backend (`app.py`) exposes a clean REST API:
 
 - `POST /api/fetch` — Extract transcripts, body: `{ "urls": [...] }`
-- `POST /api/export` — Export results, body: `{ "results": [...], "format": "txt|json|timestamped", "export_type": "zip|single_json|single_txt" }`
+- `POST /api/export` — Export results, body: `{ "results": [...], "format": "txt|json|timestamped|markdown", "export_type": "zip|single_json|single_txt|single_markdown" }`
 
 You can add new routes here for features like:
 - Playlist support

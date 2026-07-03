@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, redirect
 from flask_cors import CORS
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
 from concurrent.futures import ThreadPoolExecutor
@@ -75,7 +75,7 @@ def fetch_transcript(video_id):
 
 @app.route('/')
 def index():
-    return send_file('public/index.html')
+    return redirect('/index.html')
 
 def process_url(url):
     video_id = extract_video_id(url)
