@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TranscriptVault — Bulk YouTube Extractor</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0f;
+    --surface: #161618;
+    --surface2: #1e1e21;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #f0efe8;
+    --muted: #888784;
+    --accent: #c8f55a;
+    --accent-dark: #a8d444;
+    --accent-dim: rgba(200,245,90,0.1);
+    --accent-dim2: rgba(200,245,90,0.18);
+    --red: #f07070;
+    --red-dim: rgba(240,112,112,0.1);
+    --blue: #78b4f0;
+    --radius: 10px;
+    --radius-lg: 16px;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* noise texture overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* Header */
+  header {
+    padding: 40px 0 32px;
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+
+  .logo-mark {
+    width: 44px; height: 44px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-mark svg { color: #0d0d0f; }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+  header .tagline {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 300;
+    margin-top: 2px;
+  }
+
+  .badge {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(200,245,90,0.25);
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::before {
+    content: '';
+    display: block;
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  /* Textarea */
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 14px 16px;
+    resize: vertical;
+    min-height: 130px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+
+  /* Controls row */
+  .controls-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--accent);
+    color: #0d0d0f;
+  }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border2);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+  .btn-export {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+    font-size: 12px;
+    padding: 8px 14px;
+  }
+  .btn-export:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    padding: 14px 20px;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .stat { display: flex; flex-direction: column; }
+  .stat-val { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  /* Progress */
+  .progress-bar-wrap {
+    background: var(--surface2);
+    border-radius: 4px;
+    height: 4px;
+    margin-top: 12px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+
+  .progress-label { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  /* Video result card */
+  .result-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .result-item:hover { border-color: var(--border2); }
+  .result-item.success { border-left: 3px solid var(--accent); }
+  .result-item.error { border-left: 3px solid var(--red); }
+
+  .result-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .result-thumb {
+    width: 40px; height: 40px;
+    background: var(--surface2);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+
+  .result-meta { flex: 1; min-width: 0; }
+  .result-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .result-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .result-sub span { display: flex; align-items: center; gap: 4px; }
+
+  .chip {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 3px 8px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  .chip-success { background: var(--accent-dim); color: var(--accent); }
+  .chip-error { background: var(--red-dim); color: var(--red); }
+  .chip-loading { background: rgba(120,180,240,0.1); color: var(--blue); }
+
+  .expand-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+  .expand-btn:hover { color: var(--text); }
+
+  .result-body {
+    border-top: 1px solid var(--border);
+    padding: 16px 18px;
+    display: none;
+  }
+  .result-body.open { display: block; }
+
+  .transcript-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--text);
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: var(--sans);
+  }
+  .transcript-box::-webkit-scrollbar { width: 6px; }
+  .transcript-box::-webkit-scrollbar-track { background: transparent; }
+  .transcript-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  .ts-entry { margin-bottom: 6px; }
+  .ts-time {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    margin-right: 8px;
+    opacity: 0.7;
+  }
+
+  .tab-row {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  .tab {
+    font-size: 12px;
+    font-family: var(--mono);
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .tab.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(200,245,90,0.3); }
+
+  .body-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* Export panel */
+  .export-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .export-option {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .export-option:hover { border-color: var(--accent); background: var(--accent-dim); }
+  .export-option-title { font-size: 13px; font-weight: 500; color: var(--text); }
+  .export-option-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+  .export-option-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: inline-block;
+    width: fit-content;
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+  .empty-state p { font-size: 14px; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--text);
+    z-index: 999;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    max-width: 320px;
+  }
+  .toast.show { display: block; animation: slide-in 0.3s ease; }
+  @keyframes slide-in { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* Spinner */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(0,0,0,0.2);
+    border-top-color: #0d0d0f;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .search-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 8px 14px;
+    outline: none;
+    min-width: 180px;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--muted); }
+
+  select.styled-select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  @media (max-width: 600px) {
+    header { flex-wrap: wrap; }
+    .badge { margin-left: 0; }
+    .controls-row { flex-direction: column; align-items: stretch; }
+    .btn { justify-content: center; }
+    .stats-bar { gap: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="logo-mark">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/>
+        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+    </div>
+    <div>
+      <h1>TranscriptVault</h1>
+      <div class="tagline">Bulk YouTube transcript extractor for AI training data</div>
+    </div>
+    <div class="badge">v1.0</div>
+  </header>
+
+  <!-- Input card -->
+  <div class="card">
+    <div class="card-title">Input URLs</div>
+    <textarea id="urlInput" placeholder="Paste YouTube URLs or video IDs, one per line&#10;&#10;https://www.youtube.com/watch?v=dQw4w9WgXcQ&#10;https://youtu.be/abc123&#10;dQw4w9WgXcQ"></textarea>
+    <div class="hint">Supports full URLs, short URLs (youtu.be), and bare video IDs. One per line.</div>
+    <div class="controls-row">
+      <button class="btn btn-primary" id="fetchBtn" onclick="fetchTranscripts()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.06"/></svg>
+        Extract Transcripts
+      </button>
+      <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+      <button class="btn btn-ghost" onclick="loadSample()">Load sample</button>
+      <span id="fetchStatus" style="font-size:12px;color:var(--muted);"></span>
+    </div>
+    <div id="progressWrap" style="display:none;">
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-label" id="progressLabel">Processing...</div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="resultsSection" style="display:none;">
+    <!-- Stats -->
+    <div class="stats-bar" id="statsBar">
+      <div class="stat"><div class="stat-val" id="statTotal">0</div><div class="stat-label">Videos</div></div>
+      <div class="stat"><div class="stat-val" id="statSuccess">0</div><div class="stat-label">Extracted</div></div>
+      <div class="stat"><div class="stat-val" id="statFailed">0</div><div class="stat-label">Failed</div></div>
+      <div class="stat"><div class="stat-val" id="statWords">0</div><div class="stat-label">Total Words</div></div>
+    </div>
+
+    <!-- Search + filter -->
+    <div class="search-row">
+      <input class="search-input" id="searchInput" placeholder="Search titles or transcripts..." oninput="filterResults()">
+      <select class="styled-select" id="filterStatus" onchange="filterResults()">
+        <option value="all">All results</option>
+        <option value="success">Extracted only</option>
+        <option value="error">Errors only</option>
+      </select>
+    </div>
+
+    <!-- Results list -->
+    <div id="resultsList"></div>
+
+    <!-- Export card -->
+    <div class="card" id="exportCard">
+      <div class="card-title">Export</div>
+      <div class="export-grid">
+        <div class="export-option" onclick="exportData('zip','txt')">
+          <div class="export-option-badge">ZIP</div>
+          <div class="export-option-title">Plain Text Bundle</div>
+          <div class="export-option-desc">One .txt file per video, zipped together</div>
+        </div>
+        <div class="export-option" onclick="exportData('zip','timestamped')">
+          <div class="export-option-badge">ZIP</div>
+          <div class="export-option-title">Timestamped Bundle</div>
+          <div class="export-option-desc">With [MM:SS] timestamps — great for alignment</div>
+        </div>
+        <div class="export-option" onclick="exportData('zip','json')">
+          <div class="export-option-badge">ZIP</div>
+          <div class="export-option-title">JSON Bundle</div>
+          <div class="export-option-desc">Structured JSON per video with all metadata</div>
+        </div>
+        <div class="export-option" onclick="exportData('zip','markdown')">
+          <div class="export-option-badge">ZIP</div>
+          <div class="export-option-title">Markdown Bundle</div>
+          <div class="export-option-desc">One .md file per video, with metadata header</div>
+        </div>
+        <div class="export-option" onclick="exportData('single_json','json')">
+          <div class="export-option-badge">JSON</div>
+          <div class="export-option-title">Single JSON File</div>
+          <div class="export-option-desc">All videos in one file — ideal for AI training</div>
+        </div>
+        <div class="export-option" onclick="exportData('single_txt','txt')">
+          <div class="export-option-badge">TXT</div>
+          <div class="export-option-title">Combined Text</div>
+          <div class="export-option-desc">All transcripts in one document</div>
+        </div>
+        <div class="export-option" onclick="exportData('single_markdown','markdown')">
+          <div class="export-option-badge">MD</div>
+          <div class="export-option-title">Single Markdown File</div>
+          <div class="export-option-desc">All videos in one markdown document</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let allResults = [];
+let currentView = [];
+
+function showToast(msg, duration = 3000) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function loadSample() {
+  document.getElementById('urlInput').value =
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ\nhttps://youtu.be/jNQXAC9IVRw\nhttps://www.youtube.com/watch?v=9bZkp7q19f0';
+}
+
+function clearAll() {
+  document.getElementById('urlInput').value = '';
+  allResults = [];
+  currentView = [];
+  document.getElementById('resultsSection').style.display = 'none';
+  document.getElementById('progressWrap').style.display = 'none';
+}
+
+async function fetchTranscripts() {
+  const raw = document.getElementById('urlInput').value.trim();
+  if (!raw) { showToast('Please enter at least one URL'); return; }
+
+  const urls = raw.split('\n').map(u => u.trim()).filter(Boolean);
+  if (!urls.length) return;
+
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Extracting...';
+
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('progressBar').style.width = '5%';
+  document.getElementById('progressLabel').textContent = `Processing ${urls.length} video${urls.length > 1 ? 's' : ''}...`;
+
+  try {
+    const res = await fetch('/api/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls })
+    });
+    const data = await res.json();
+    allResults = data.results || [];
+
+    document.getElementById('progressBar').style.width = '100%';
+    document.getElementById('progressLabel').textContent = 'Done!';
+    setTimeout(() => document.getElementById('progressWrap').style.display = 'none', 1500);
+
+    renderResults(allResults);
+    document.getElementById('resultsSection').style.display = 'block';
+  } catch (err) {
+    showToast('Server error — make sure the backend is running');
+    document.getElementById('progressWrap').style.display = 'none';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.06"/></svg> Extract Transcripts`;
+}
+
+function updateStats(results) {
+  const success = results.filter(r => r.status === 'success');
+  const failed = results.filter(r => r.status === 'error');
+  const totalWords = success.reduce((s, r) => s + (r.word_count || 0), 0);
+  document.getElementById('statTotal').textContent = results.length;
+  document.getElementById('statSuccess').textContent = success.length;
+  document.getElementById('statFailed').textContent = failed.length;
+  document.getElementById('statWords').textContent = totalWords > 999 ? (totalWords / 1000).toFixed(1) + 'k' : totalWords;
+}
+
+function filterResults() {
+  const query = document.getElementById('searchInput').value.toLowerCase();
+  const status = document.getElementById('filterStatus').value;
+  const filtered = allResults.filter(r => {
+    if (status !== 'all' && r.status !== status) return false;
+    if (!query) return true;
+    const title = (r.title || '').toLowerCase();
+    const text = (r.full_text || '').toLowerCase();
+    return title.includes(query) || text.includes(query);
+  });
+  renderResults(filtered, false);
+}
+
+function renderResults(results, updateStatsFlag = true) {
+  if (updateStatsFlag) updateStats(results);
+  currentView = results;
+
+  const list = document.getElementById('resultsList');
+
+  if (!results.length) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">◻</div><p>No results match your filter</p></div>';
+    return;
+  }
+
+  list.innerHTML = results.map((r, i) => {
+    if (r.status === 'error') {
+      return `
+        <div class="result-item error">
+          <div class="result-header">
+            <div class="result-thumb" style="color:var(--red);">!</div>
+            <div class="result-meta">
+              <div class="result-title">${r.url}</div>
+              <div class="result-sub"><span>${r.error}</span></div>
+            </div>
+            <div class="chip chip-error">Error</div>
+          </div>
+        </div>`;
+    }
+
+    const initials = (r.title || 'V').split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
+    return `
+      <div class="result-item success" id="item-${i}">
+        <div class="result-header" onclick="toggleItem(${i})">
+          <div class="result-thumb">${initials}</div>
+          <div class="result-meta">
+            <div class="result-title">${escHtml(r.title || r.video_id)}</div>
+            <div class="result-sub">
+              <span>📝 ${r.word_count?.toLocaleString()} words</span>
+              <span>⏱ ${r.duration}</span>
+              <span>🌐 ${r.language || 'en'}</span>
+            </div>
+          </div>
+          <div class="chip chip-success">✓ Done</div>
+          <button class="expand-btn" id="expand-${i}">▾</button>
+        </div>
+        <div class="result-body" id="body-${i}">
+          <div class="tab-row">
+            <button class="tab active" onclick="switchTab(${i},'full',this)">Full Text</button>
+            <button class="tab" onclick="switchTab(${i},'ts',this)">Timestamped</button>
+          </div>
+          <div class="transcript-box" id="full-${i}">${escHtml(r.full_text || '')}</div>
+          <div class="transcript-box" id="ts-${i}" style="display:none;">${buildTimestamped(r.timestamped)}</div>
+          <div class="body-actions">
+            <button class="btn btn-export" onclick="copyText(${i})">Copy text</button>
+            <a href="https://www.youtube.com/watch?v=${r.video_id}" target="_blank" class="btn btn-export" style="text-decoration:none;">Open on YouTube ↗</a>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function buildTimestamped(entries = []) {
+  return entries.map(e => `<div class="ts-entry"><span class="ts-time">[${e.timestamp}]</span>${escHtml(e.text)}</div>`).join('');
+}
+
+function toggleItem(i) {
+  const body = document.getElementById(`body-${i}`);
+  const btn = document.getElementById(`expand-${i}`);
+  const open = body.classList.toggle('open');
+  btn.textContent = open ? '▴' : '▾';
+}
+
+function switchTab(i, tab, el) {
+  document.getElementById(`full-${i}`).style.display = tab === 'full' ? '' : 'none';
+  document.getElementById(`ts-${i}`).style.display = tab === 'ts' ? '' : 'none';
+  el.closest('.tab-row').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function copyText(i) {
+  const r = currentView[i];
+  if (r && r.full_text) {
+    navigator.clipboard.writeText(r.full_text).then(() => showToast('Copied to clipboard!'));
+  }
+}
+
+async function exportData(exportType, fmt) {
+  const successResults = allResults.filter(r => r.status === 'success');
+  if (!successResults.length) { showToast('No successful transcripts to export'); return; }
+
+  try {
+    const res = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: successResults, format: fmt, export_type: exportType })
+    });
+
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const nameMatch = cd.match(/filename="?([^"]+)"?/);
+    const filename = nameMatch ? nameMatch[1] : 'transcripts_export';
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Export downloaded!');
+  } catch (err) {
+    showToast('Export failed');
+  }
+}
+
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
