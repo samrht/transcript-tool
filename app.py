@@ -3,6 +3,7 @@ from flask_cors import CORS
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
 from concurrent.futures import ThreadPoolExecutor
 import re
+import os
 import json
 import zipfile
 import io
@@ -26,15 +27,23 @@ def extract_video_id(url_or_id):
             return match.group(1)
     return None
 
-def get_video_title(video_id):
+def get_video_meta(video_id):
+    meta = {
+        'title': f'Video_{video_id}',
+        'channel': '',
+        'thumbnail': f'https://i.ytimg.com/vi/{video_id}/hqdefault.jpg',
+    }
     try:
         import urllib.request
         url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
         with urllib.request.urlopen(url, timeout=5) as response:
             data = json.loads(response.read())
-            return data.get('title', f'Video_{video_id}')
+            meta['title'] = data.get('title', meta['title'])
+            meta['channel'] = data.get('author_name', '')
+            meta['thumbnail'] = data.get('thumbnail_url', meta['thumbnail'])
     except Exception:
-        return f'Video_{video_id}'
+        pass
+    return meta
 
 def fetch_transcript(video_id):
     transcript_list = YouTubeTranscriptApi().list(video_id)
@@ -88,11 +97,13 @@ def process_url(url):
         return {'url': url, **cached}
 
     try:
-        title = get_video_title(video_id)
+        meta = get_video_meta(video_id)
         transcript_data = fetch_transcript(video_id)
         record = {
             'video_id': video_id,
-            'title': title,
+            'title': meta['title'],
+            'channel': meta['channel'],
+            'thumbnail': meta['thumbnail'],
             'status': 'success',
             'youtube_url': f'https://www.youtube.com/watch?v={video_id}',
             **transcript_data
@@ -221,6 +232,42 @@ def export():
 
     zip_buf.seek(0)
     return send_file(zip_buf, as_attachment=True, download_name=f'transcripts_{timestamp}.zip', mimetype='application/zip')
+
+@app.route('/api/summary', methods=['POST'])
+def summary():
+    data = request.get_json(silent=True) or {}
+    text = (data.get('text') or '').strip()
+    title = (data.get('title') or '').strip()
+
+    if not text:
+        return jsonify({'error': 'No transcript text to summarize.'}), 400
+
+    api_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
+    if not api_key:
+        return jsonify({
+            'error': 'AI summaries need a Gemini key. Set GEMINI_API_KEY in your environment and restart the server.'
+        }), 503
+
+    try:
+        import urllib.request
+        prompt = (
+            "Summarize the following YouTube transcript into 5-7 tight bullet points that "
+            "capture the key ideas. Use plain language, no preamble.\n\n"
+            f"Title: {title}\n\nTranscript:\n{text[:24000]}"
+        )
+        payload = json.dumps({'contents': [{'parts': [{'text': prompt}]}]}).encode('utf-8')
+        url = (
+            'https://generativelanguage.googleapis.com/v1beta/models/'
+            f'gemini-2.0-flash:generateContent?key={api_key}'
+        )
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            out = json.loads(resp.read())
+        summary_text = out['candidates'][0]['content']['parts'][0]['text'].strip()
+        return jsonify({'summary': summary_text})
+    except Exception as e:
+        return jsonify({'error': f'Summary failed: {e}'}), 500
+
 
 if __name__ == '__main__':
     print("\n  YouTube Transcript Extractor")
